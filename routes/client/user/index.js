@@ -8,16 +8,12 @@ const {
   ADMIN,
 } = require('../../../config/globalParams');
 const { privateDecrypt } = require('crypto');
-const { sign, verify } = require('../../../utils/token');
+const { sign } = require('../../../utils/token');
 const bcrypt = require('bcryptjs');
-
 const router = require('koa-router')();
-
 const User = require('../../../models/user');
-
 const schema = require('./schema');
-const { findByIdAndRemove } = require('../../../models/user');
-const { registerSchema, loginSchema } = schema;
+const { registerSchema, loginSchema, resetPwdSchema, idSchema } = schema;
 
 router.prefix('/api/user');
 
@@ -232,6 +228,12 @@ router.get('/get-info', async (ctx, next) => {
  */
 router.post('/getUserInfoById', async (ctx, next) => {
   try {
+    //数据校验
+    const { error } = idSchema.validate(ctx.request.body);
+    if (error) {
+      const Error = new HttpException('请传入用户id', 400);
+      throw Error;
+    }
     const user = await User.findById(ctx.request.body.id);
     ctx.body = {
       code: 0,
@@ -246,135 +248,55 @@ router.post('/getUserInfoById', async (ctx, next) => {
 });
 
 /**
- * 更新用户信息
- */
-router.post('/updateInfo', async (ctx, next) => {
-  try {
-    const user = await User.findById(ctx.request.body._id);
-    user.name = ctx.request.body.name;
-    user.tel = ctx.request.body.tel;
-    user.role = ctx.request.body.role;
-    if (ctx.request.body.password) {
-      const buffer = Buffer.from(ctx.request.body.password, 'base64');
-      const originalPassword = privateDecrypt(rsaPrivateKey, buffer).toString(); //解密后的原密码
-      const salt = bcrypt.genSaltSync(10);
-      const hashPwd = bcrypt.hashSync(originalPassword, salt);
-      user.password = hashPwd;
-    }
-    await user.save();
-    ctx.body = {
-      code: 0,
-      msg: '更新成功',
-      data: {
-        user,
-      },
-    };
-  } catch (e) {
-    console.log(e);
-    throw e;
-  }
-});
-
-/**
  * 客户端更新用户信息，重新签名
  */
 router.post('/userUpdateInfo', async (ctx, next) => {
   try {
-    const user = await User.findById(ctx.request.body._id);
-    user.name = ctx.request.body.name;
-    user.tel = ctx.request.body.tel;
-    user.role = ctx.request.body.role;
-    if (ctx.request.body.password) {
-      const buffer = Buffer.from(ctx.request.body.password, 'base64');
-      const originalPassword = privateDecrypt(rsaPrivateKey, buffer).toString(); //解密后的原密码
-      const salt = bcrypt.genSaltSync(10);
-      const hashPwd = bcrypt.hashSync(originalPassword, salt);
-      user.password = hashPwd;
+    const { error } = idSchema.validate(ctx.request.body);
+    if (error) {
+      const Error = new HttpException('请传入用户id', 400);
+      throw Error;
     }
-    await user.save();
-    let token =
-      'Bearer ' +
-      sign({
-        name: user.name,
-        id: user._id,
-        role: user.role,
-        tel: user.tel,
-        staffId: user.staffId,
-      });
-    ctx.body = {
-      code: 0,
-      msg: '更新成功',
-      data: {
-        user,
-        token,
-      },
-    };
-  } catch (e) {
-    console.log(e);
-    throw e;
-  }
-});
-
-/**
- * 删除用户
- */
-router.post('/delete', async (ctx, next) => {
-  try {
-    const id = ctx.request.body.id;
-    const result = await User.findByIdAndRemove(id);
-    if (!result) {
+    const user = await User.findById(ctx.request.body.id);
+    if (user) {
+      user.name = ctx.request.body.name;
+      user.tel = ctx.request.body.tel;
+      user.role = ctx.request.body.role;
+      if (ctx.request.body.password) {
+        const buffer = Buffer.from(ctx.request.body.password, 'base64');
+        const originalPassword = privateDecrypt(
+          rsaPrivateKey,
+          buffer
+        ).toString(); //解密后的原密码
+        const salt = bcrypt.genSaltSync(10);
+        const hashPwd = bcrypt.hashSync(originalPassword, salt);
+        user.password = hashPwd;
+      }
+      await user.save();
+      let token =
+        'Bearer ' +
+        sign({
+          name: user.name,
+          id: user._id,
+          role: user.role,
+          tel: user.tel,
+          staffId: user.staffId,
+        });
+      ctx.body = {
+        code: 0,
+        msg: '更新成功',
+        data: {
+          user,
+          token,
+        },
+      };
+    } else {
       ctx.body = {
         code: 1,
         msg: '用户不存在',
         data: {},
       };
-      return;
     }
-    ctx.body = {
-      code: 0,
-      msg: '删除成功',
-      data: {},
-    };
-  } catch (e) {
-    console.log(e);
-    throw e;
-  }
-});
-
-/**
- * 增加用户
- */
-router.post('/add', async (ctx, next) => {
-  try {
-    const { tel, name, role, password, staffId } = ctx.request.body;
-    const res = await User.findOne({ tel });
-    if (res) {
-      ctx.body = {
-        code: 1,
-        msg: '手机号已注册',
-        data: {},
-      };
-      return;
-    }
-    const buffer = Buffer.from(password, 'base64');
-    const originalPassword = privateDecrypt(rsaPrivateKey, buffer).toString(); //解密后的原密码
-    const salt = bcrypt.genSaltSync(10);
-    const hashPwd = bcrypt.hashSync(originalPassword, salt);
-    const user = new User({
-      name,
-      tel,
-      role,
-      staffId,
-      password: hashPwd,
-    });
-    await user.save();
-    ctx.body = {
-      code: 0,
-      data: {
-        user,
-      },
-      msg: '添加成功',
-    };
   } catch (e) {
     console.log(e);
     throw e;
@@ -387,6 +309,11 @@ router.post('/add', async (ctx, next) => {
 router.post('/resetPassword', async (ctx, next) => {
   try {
     // 数据校验;
+    const { error } = resetPwdSchema.validate(ctx.request.body);
+    if (error) {
+      const Error = new HttpException('数据格式有误', 400);
+      throw Error;
+    }
     const { id, password, tel } = ctx.request.body;
 
     let user;

@@ -22,14 +22,16 @@ const loginSchema = Joi.object({
   verify: Joi.any(),
 });
 
-// const test = {
-//   tel: '18822917378',
-//   name: 'gavell',
-//   password: '1231231231223',
-//   role: 'teacher',
-// };
-// console.log('==========================');
-// const { error } = registerSchema.validate(test);
-// console.log(error);
-// console.log('==========================');
-module.exports = { registerSchema, loginSchema };
+const resetPwdSchema = Joi.object({
+  tel: Joi.string()
+    .length(11)
+    .pattern(/^[0-9]+$/, 'numbers'),
+  password: Joi.string().required(),
+  id: Joi.string(),
+});
+
+const idSchema = Joi.object({
+  id: Joi.string().required(),
+});
+
+module.exports = { registerSchema, loginSchema, resetPwdSchema, idSchema };

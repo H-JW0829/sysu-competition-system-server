@@ -1,18 +1,18 @@
-const { HttpException } = require('../../../utils/class');
 const router = require('koa-router')();
-
-const { ADMIN } = require('../../../config/globalParams');
-
-const Competition = require('../../../models/competition');
 const mongoose = require('mongoose');
+const { ADMIN } = require('../../../config/globalParams');
+const Competition = require('../../../models/competition');
 const User = require('../../../models/user');
 const { compare } = require('../../../utils/methods');
-const request = require('request');
+const schema = require('./schema');
+const { idSchema, signUpSchema } = schema;
+const { HttpException } = require('../../../utils/class');
 
 router.prefix('/api/competition');
 
 /**
  * 获取比赛列表
+ * 共用
  */
 router.get('/all', async (ctx, next) => {
   try {
@@ -48,168 +48,19 @@ router.get('/all', async (ctx, next) => {
 });
 
 /**
- * 创建比赛
- */
-router.post('/add', async (ctx, next) => {
-  try {
-    //todo:数据校验
-    if (ctx.state.user.role !== ADMIN) {
-      ctx.body = {
-        code: -1,
-        data: {},
-        msg: '没有操作权限',
-      };
-      return;
-    }
-    const {
-      title,
-      desc,
-      organizer,
-      content,
-      team_num,
-      start_time,
-      end_time,
-      tags,
-      min_people,
-      max_people,
-      score_teacher,
-    } = ctx.request.body;
-    const competition = new Competition({
-      title,
-      desc,
-      organizer,
-      content,
-      team_num: team_num ? team_num : 0,
-      start_time,
-      end_time,
-      tags,
-      min_people: Number(min_people),
-      max_people: Number(max_people),
-    });
-    const teacher = await User.findOne({ staffId: score_teacher });
-    competition.score_teacher = teacher._id;
-    await competition.save();
-    ctx.body = {
-      code: 0,
-      msg: '添加成功',
-      data: {},
-    };
-  } catch (e) {
-    console.log(e);
-    throw e;
-  }
-});
-
-/**
- * 删除比赛
- */
-router.post('/delete', async (ctx, next) => {
-  try {
-    if (ctx.state.user.role !== ADMIN) {
-      ctx.body = {
-        code: -1,
-        data: {},
-        msg: '没有操作权限',
-      };
-      return;
-    }
-    const id = ctx.request.body.id;
-    const result = await Competition.findByIdAndRemove(id);
-    if (!result) {
-      ctx.body = {
-        code: 1,
-        msg: '比赛不存在',
-        data: {},
-      };
-      return;
-    }
-    ctx.body = {
-      code: 0,
-      msg: '删除成功',
-      data: {},
-    };
-  } catch (e) {
-    console.log(e);
-    throw e;
-  }
-});
-
-/**
- * 更新比赛
- */
-router.post('/update', async (ctx, next) => {
-  try {
-    if (ctx.state.user.role !== ADMIN) {
-      ctx.body = {
-        code: -1,
-        data: {},
-        msg: '没有操作权限',
-      };
-      return;
-    }
-    const updateCompetition = { ...ctx.request.body };
-    const { id, score_teacher } = updateCompetition;
-    updateCompetition.min_people = Number(updateCompetition.min_people);
-    updateCompetition.max_people = Number(updateCompetition.max_people);
-    const teacher = await User.findOne({ staffId: score_teacher });
-    updateCompetition.score_teacher = teacher._id;
-    const competition = await Competition.findByIdAndUpdate(
-      id,
-      {
-        $set: {
-          ...updateCompetition,
-        },
-      },
-      { new: true }
-    );
-    // console.log(competition);
-    ctx.body = {
-      code: 0,
-      msg: '更新成功',
-      data: competition,
-    };
-  } catch (e) {
-    console.log(e);
-    throw e;
-  }
-});
-
-/**
- * 更新比赛内容
- */
-router.post('/updateContent', async (ctx, next) => {
-  try {
-    if (ctx.state.user.role !== ADMIN) {
-      ctx.body = {
-        code: -1,
-        data: {},
-        msg: '没有操作权限',
-      };
-      return;
-    }
-    const { content, id } = ctx.request.body;
-    //   const { _id } = updateCompetition;
-    const competition = await Competition.findById(id);
-    competition.content = content;
-    competition.save();
-    ctx.body = {
-      code: 0,
-      msg: '更新成功',
-      data: competition,
-    };
-  } catch (e) {
-    throw e;
-  }
-});
-
-/**
  * 查询比赛信息
  */
 router.post('/find', async (ctx, next) => {
   try {
-    const { id } = ctx.request.body;
+    //数据校验
+    const { error } = idSchema.validate(ctx.request.body);
+    if (error) {
+      const Error = new HttpException('请传入比赛id', 400);
+      throw Error;
+    }
+    const { competitionId } = ctx.request.body;
     try {
-      let objectId = mongoose.Types.ObjectId(id);
+      let objectId = mongoose.Types.ObjectId(competitionId);
     } catch (e) {
       ctx.body = {
         code: 1,
@@ -222,7 +73,9 @@ router.post('/find', async (ctx, next) => {
       { path: 'teams.users.user' },
       { path: 'score_teacher', select: 'name role staffId tel' },
     ];
-    const competition = await Competition.findById(id).populate(populateQuery);
+    const competition = await Competition.findById(competitionId).populate(
+      populateQuery
+    );
     if (!competition) {
       ctx.body = {
         code: 1,
@@ -262,11 +115,16 @@ router.post('/find', async (ctx, next) => {
  */
 router.post('/signUp', async (ctx, next) => {
   try {
+    //数据校验
+    const { error } = signUpSchema.validate(ctx.request.body);
+    if (error) {
+      const Error = new HttpException('数据格式有误', 400);
+      throw Error;
+    }
     const data = ctx.request.body;
     const { users, competitionId } = data;
     console.log(users);
     const competition = await Competition.findById(competitionId);
-    // console.log(competition);
     const appendix = {
       isSubmit: false,
     };
@@ -292,9 +150,7 @@ router.post('/signUp', async (ctx, next) => {
       signUpUser.isCaptain = isCaptain;
       team.users.push(signUpUser);
     }
-    console.log('=====');
     competition.teams.push(team);
-    console.log('=====');
     competition.team_num += 1;
     competition.save();
     ctx.body = {
@@ -315,6 +171,12 @@ router.post('/signUp', async (ctx, next) => {
  */
 router.post('/listSignUp', async (ctx, next) => {
   try {
+    //数据校验
+    const { error } = idSchema.validate(ctx.request.body);
+    if (error) {
+      const Error = new HttpException('请传入比赛id', 400);
+      throw Error;
+    }
     const { competitionId } = ctx.request.body;
     const competition = await Competition.findById(competitionId).populate(
       'teams.users.user'
@@ -337,6 +199,12 @@ router.post('/listSignUp', async (ctx, next) => {
  */
 router.post('/submitAppendix', async (ctx, next) => {
   try {
+    //数据校验
+    const { error } = idSchema.validate(ctx.request.body);
+    if (error) {
+      const Error = new HttpException('请传入比赛id', 400);
+      throw Error;
+    }
     const { competitionId, teamId, appendix } = ctx.request.body;
     const competition = await Competition.findById(competitionId);
     for (let i = 0; i < competition.teams.length; i++) {
@@ -351,16 +219,6 @@ router.post('/submitAppendix', async (ctx, next) => {
       data: {},
       msg: '提交成功',
     };
-    // const competition = await Competition.findById(competitionId).populate(
-    //   'teams.users.user'
-    // );
-    // ctx.body = {
-    //   code: 0,
-    //   data: {
-    //     competition,
-    //   },
-    //   msg: '查询成功',
-    // };
   } catch (e) {
     console.log(e);
     throw e;
@@ -372,6 +230,12 @@ router.post('/submitAppendix', async (ctx, next) => {
  */
 router.post('/getAppendix', async (ctx, next) => {
   try {
+    //数据校验
+    const { error } = idSchema.validate(ctx.request.body);
+    if (error) {
+      const Error = new HttpException('请传入比赛id', 400);
+      throw Error;
+    }
     const { competitionId, teamId } = ctx.request.body;
     console.log(competitionId, teamId);
     const competition = await Competition.findById(competitionId);
@@ -401,16 +265,6 @@ router.post('/getAppendix', async (ctx, next) => {
         msg: '查询成功',
       };
     }
-    // const competition = await Competition.findById(competitionId).populate(
-    //   'teams.users.user'
-    // );
-    // ctx.body = {
-    //   code: 0,
-    //   data: {
-    //     competition,
-    //   },
-    //   msg: '查询成功',
-    // };
   } catch (e) {
     console.log(e);
     throw e;
@@ -422,6 +276,12 @@ router.post('/getAppendix', async (ctx, next) => {
  */
 router.post('/deleteAppendix', async (ctx, next) => {
   try {
+    //数据校验
+    const { error } = idSchema.validate(ctx.request.body);
+    if (error) {
+      const Error = new HttpException('请传入比赛id', 400);
+      throw Error;
+    }
     const { competitionId, teamId } = ctx.request.body;
     const competition = await Competition.findById(competitionId);
     for (let i = 0; i < competition.teams.length; i++) {
@@ -447,6 +307,12 @@ router.post('/deleteAppendix', async (ctx, next) => {
  */
 router.post('/submitScore', async (ctx, next) => {
   try {
+    //数据校验
+    const { error } = idSchema.validate(ctx.request.body);
+    if (error) {
+      const Error = new HttpException('请传入比赛id', 400);
+      throw Error;
+    }
     const { competitionId, teamId, score } = ctx.request.body;
     const competition = await Competition.findById(competitionId);
     for (let i = 0; i < competition.teams.length; i++) {
@@ -472,6 +338,12 @@ router.post('/submitScore', async (ctx, next) => {
  */
 router.post('/getRank', async (ctx, next) => {
   try {
+    //数据校验
+    const { error } = idSchema.validate(ctx.request.body);
+    if (error) {
+      const Error = new HttpException('请传入比赛id', 400);
+      throw Error;
+    }
     const { competitionId } = ctx.request.body;
     // const competition = await Competition.findById(competitionId);
     const populateQuery = [{ path: 'teams.users.user' }];
@@ -517,48 +389,6 @@ router.post('/getRank', async (ctx, next) => {
         rank,
       },
       msg: '查询成功',
-    };
-  } catch (e) {
-    console.log(e);
-    throw e;
-  }
-});
-
-/**
- * 发布成绩
- */
-router.post('/publishRank', async (ctx, next) => {
-  try {
-    const { competitionId } = ctx.request.body;
-    // const competition = await Competition.findById(competitionId);
-    const competition = await Competition.findById(competitionId);
-    competition.showRank = true;
-    competition.save();
-    ctx.body = {
-      code: 0,
-      data: {},
-      msg: '发布成功',
-    };
-  } catch (e) {
-    console.log(e);
-    throw e;
-  }
-});
-
-/**
- * 取消发布成绩
- */
-router.post('/unPublishRank', async (ctx, next) => {
-  try {
-    const { competitionId } = ctx.request.body;
-    // const competition = await Competition.findById(competitionId);
-    const competition = await Competition.findById(competitionId);
-    competition.showRank = false;
-    competition.save();
-    ctx.body = {
-      code: 0,
-      data: {},
-      msg: '发布成功',
     };
   } catch (e) {
     console.log(e);

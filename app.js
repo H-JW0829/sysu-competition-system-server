@@ -17,8 +17,9 @@ let key = fs.readFileSync(
 
 const db = require('./models/database');
 
-const user = require('./routes/client/user');
-const competition = require('./routes/client/competition');
+// const user = require('./routes/client/user');
+// const competition = require('./routes/client/competition');
+const registerRouter = require('./routes');
 
 app.use(middlewares.catchGlobalError); //全局错误处理，一定要放在第一位
 db.connect(); //连接数据库
@@ -93,8 +94,9 @@ app.use(
   })
 );
 // routes
-app.use(user.routes(), user.allowedMethods());
-app.use(competition.routes(), competition.allowedMethods());
+// app.use(user.routes(), user.allowedMethods());
+// app.use(competition.routes(), competition.allowedMethods());
+app.use(registerRouter());
 
 // error-handling
 app.on('error', (err, ctx) => {
