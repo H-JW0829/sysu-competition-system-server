@@ -90,6 +90,7 @@ app.use(
       '/api/user/key',
       '/api/user/userInfo/all',
       '/api/competition/foot',
+      '/api/competition/getAllAppendixes',
     ], //除了这个地址，其他的URL都需要验证
   })
 );

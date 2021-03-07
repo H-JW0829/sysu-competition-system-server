@@ -53,7 +53,9 @@ router.get('/all', async (ctx, next) => {
 router.post('/find', async (ctx, next) => {
   try {
     //数据校验
-    const { error } = idSchema.validate(ctx.request.body);
+    const { error } = idSchema.validate(ctx.request.body, {
+      allowUnknown: true,
+    });
     if (error) {
       const Error = new HttpException('请传入比赛id', 400);
       throw Error;
@@ -172,7 +174,9 @@ router.post('/signUp', async (ctx, next) => {
 router.post('/listSignUp', async (ctx, next) => {
   try {
     //数据校验
-    const { error } = idSchema.validate(ctx.request.body);
+    const { error } = idSchema.validate(ctx.request.body, {
+      allowUnknown: true,
+    });
     if (error) {
       const Error = new HttpException('请传入比赛id', 400);
       throw Error;
@@ -200,8 +204,12 @@ router.post('/listSignUp', async (ctx, next) => {
 router.post('/submitAppendix', async (ctx, next) => {
   try {
     //数据校验
-    const { error } = idSchema.validate(ctx.request.body);
+    console.log(ctx.request.body, 'tttt');
+    const { error } = idSchema.validate(ctx.request.body, {
+      allowUnknown: true,
+    });
     if (error) {
+      console.log(error, 'eee');
       const Error = new HttpException('请传入比赛id', 400);
       throw Error;
     }
@@ -231,7 +239,9 @@ router.post('/submitAppendix', async (ctx, next) => {
 router.post('/getAppendix', async (ctx, next) => {
   try {
     //数据校验
-    const { error } = idSchema.validate(ctx.request.body);
+    const { error } = idSchema.validate(ctx.request.body, {
+      allowUnknown: true,
+    });
     if (error) {
       const Error = new HttpException('请传入比赛id', 400);
       throw Error;
@@ -277,7 +287,9 @@ router.post('/getAppendix', async (ctx, next) => {
 router.post('/deleteAppendix', async (ctx, next) => {
   try {
     //数据校验
-    const { error } = idSchema.validate(ctx.request.body);
+    const { error } = idSchema.validate(ctx.request.body, {
+      allowUnknown: true,
+    });
     if (error) {
       const Error = new HttpException('请传入比赛id', 400);
       throw Error;
@@ -286,7 +298,7 @@ router.post('/deleteAppendix', async (ctx, next) => {
     const competition = await Competition.findById(competitionId);
     for (let i = 0; i < competition.teams.length; i++) {
       if (competition.teams[i]._id.toString() === teamId) {
-        competition.teams[i].appendix = {};
+        competition.teams[i].appendix = { isSubmit: false };
         break;
       }
     }
@@ -308,7 +320,9 @@ router.post('/deleteAppendix', async (ctx, next) => {
 router.post('/submitScore', async (ctx, next) => {
   try {
     //数据校验
-    const { error } = idSchema.validate(ctx.request.body);
+    const { error } = idSchema.validate(ctx.request.body, {
+      allowUnknown: true,
+    });
     if (error) {
       const Error = new HttpException('请传入比赛id', 400);
       throw Error;
@@ -339,7 +353,9 @@ router.post('/submitScore', async (ctx, next) => {
 router.post('/getRank', async (ctx, next) => {
   try {
     //数据校验
-    const { error } = idSchema.validate(ctx.request.body);
+    const { error } = idSchema.validate(ctx.request.body, {
+      allowUnknown: true,
+    });
     if (error) {
       const Error = new HttpException('请传入比赛id', 400);
       throw Error;
