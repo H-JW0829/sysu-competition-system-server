@@ -19,6 +19,7 @@ const CompetitionSchema = new Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'user',
   },
+  fileList: [Object],
   teams: [
     {
       _id: mongoose.Schema.Types.ObjectId,
@@ -35,52 +36,12 @@ const CompetitionSchema = new Schema({
         },
       ],
       appendix: {
-        type: Object,
-        default: {
-          isSubmit: {
-            type: Boolean,
-            default: false,
-          },
-          name: {
-            type: String,
-            default: '',
-          },
-          url: {
-            type: String,
-            default: '',
-          },
-          fileType: {
-            type: String,
-            default: '',
-          },
-          size: {
-            type: Number,
-            default: 0,
-          },
-          uid: {
-            type: String,
-            default: '',
-          },
-        },
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'appendix',
       },
       score: Number,
     },
   ],
-  // teams: [
-  //   [
-  //     {
-  //       student: {
-  //         type: mongoose.Schema.Types.ObjectId,
-  //         ref: 'user',
-  //       },
-  //       isCaptain: {
-  //         type: Boolean,
-  //         default: false,
-  //       },
-  //     },
-  //   ],
-  // ],
-  //待续
 });
 
 const Competition = mongoose.model('competition', CompetitionSchema);

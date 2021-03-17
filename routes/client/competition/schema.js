@@ -4,9 +4,13 @@ const idSchema = Joi.object({
   competitionId: Joi.string().required(),
 });
 
+const appendixIdSchema = Joi.object({
+  appendixId: Joi.string().required(),
+});
+
 const signUpSchema = Joi.object({
   competitionId: Joi.string().required(),
   users: Joi.array().required(),
 });
 
-module.exports = { idSchema, signUpSchema };
+module.exports = { idSchema, signUpSchema, appendixIdSchema };

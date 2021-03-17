@@ -2,10 +2,11 @@ const router = require('koa-router')();
 const mongoose = require('mongoose');
 const { ADMIN } = require('../../../config/globalParams');
 const Competition = require('../../../models/competition');
+const Appendix = require('../../../models/appendix');
 const User = require('../../../models/user');
 const { compare } = require('../../../utils/methods');
 const schema = require('./schema');
-const { idSchema, signUpSchema } = schema;
+const { idSchema, signUpSchema, appendixIdSchema } = schema;
 const { HttpException } = require('../../../utils/class');
 
 router.prefix('/api/competition');
@@ -74,6 +75,7 @@ router.post('/find', async (ctx, next) => {
     const populateQuery = [
       { path: 'teams.users.user' },
       { path: 'score_teacher', select: 'name role staffId tel' },
+      { path: 'teams.appendix' },
     ];
     const competition = await Competition.findById(competitionId).populate(
       populateQuery
@@ -125,35 +127,29 @@ router.post('/signUp', async (ctx, next) => {
     }
     const data = ctx.request.body;
     const { users, competitionId } = data;
-    console.log(users);
-    const competition = await Competition.findById(competitionId);
-    const appendix = {
-      isSubmit: false,
-    };
+    const competition = await Competition.findById(competitionId); //查询对应的比赛
     const team = {
       _id: mongoose.Types.ObjectId(competition?.teams?.length),
       users: [],
-      appendix,
-      score: -1,
+      score: -1, //初始分数置为-1
     };
     for (let i = 0; i < users.length; i++) {
       let signUpUser = {};
       const { isCaptain, staffId } = users[i];
-      const user = await User.findOne({ staffId: staffId });
+      const user = await User.findOne({ staffId: staffId }); //根据学号查找到用户
       const signUpCompetition = {
         competition: competition._id,
         isCaptain: isCaptain,
         teamId: team._id,
-        appendix,
       };
-      user.competitions.push(signUpCompetition);
+      user.competitions.push(signUpCompetition); //把竞赛添加到用户已报名竞赛的数组中
       user.save();
       signUpUser.user = user._id;
       signUpUser.isCaptain = isCaptain;
-      team.users.push(signUpUser);
+      team.users.push(signUpUser); //竞赛队伍添加成员信息
     }
     competition.teams.push(team);
-    competition.team_num += 1;
+    competition.team_num += 1; //报名队伍数量加一
     competition.save();
     ctx.body = {
       code: 0,
@@ -199,33 +195,74 @@ router.post('/listSignUp', async (ctx, next) => {
 });
 
 /**
- * 更新/提交作品
+ * 提交作品
  */
 router.post('/submitAppendix', async (ctx, next) => {
   try {
     //数据校验
-    console.log(ctx.request.body, 'tttt');
     const { error } = idSchema.validate(ctx.request.body, {
       allowUnknown: true,
     });
     if (error) {
-      console.log(error, 'eee');
       const Error = new HttpException('请传入比赛id', 400);
       throw Error;
     }
-    const { competitionId, teamId, appendix } = ctx.request.body;
-    const competition = await Competition.findById(competitionId);
+    const { competitionId, teamId, newAppendix } = ctx.request.body;
+    const appendix = new Appendix({
+      //创建作品的对象，写入数据库
+      ...newAppendix,
+    });
+    const competition = await Competition.findById(competitionId); //查询比赛信息
     for (let i = 0; i < competition.teams.length; i++) {
       if (competition.teams[i]._id.toString() === teamId) {
-        competition.teams[i].appendix = { ...appendix, isSubmit: true };
+        //查找到提交作品的队伍
+        competition.teams[i].appendix = appendix._id; //建立参赛队伍和作品集合的关联
         break;
       }
     }
+    appendix.save();
     competition.save();
     ctx.body = {
       code: 0,
-      data: {},
+      data: {
+        appendix,
+      },
       msg: '提交成功',
+    };
+  } catch (e) {
+    console.log(e);
+    throw e;
+  }
+});
+
+/**
+ * 更新作品
+ */
+router.post('/updateAppendix', async (ctx, next) => {
+  try {
+    //数据校验
+    // const { error } = idSchema.validate(ctx.request.body, {
+    //   allowUnknown: true,
+    // });
+    // if (error) {
+    //   const Error = new HttpException('请传入比赛id', 400);
+    //   throw Error;
+    // }
+    const { newAppendix } = ctx.request.body;
+    const { id } = newAppendix;
+    let appendix = await Appendix.findById(id);
+    appendix.name = newAppendix.name ? newAppendix.name : appendix.name;
+    appendix.url = newAppendix.url ? newAppendix.url : appendix.url;
+    appendix.fileType = newAppendix.fileType
+      ? newAppendix.fileType
+      : appendix.fileType;
+    appendix.size = newAppendix.size ? newAppendix.size : appendix.size;
+    appendix.uid = newAppendix.uid ? newAppendix.uid : appendix.uid;
+    appendix.save();
+    ctx.body = {
+      code: 0,
+      data: {},
+      msg: '更新成功',
     };
   } catch (e) {
     console.log(e);
@@ -247,16 +284,18 @@ router.post('/getAppendix', async (ctx, next) => {
       throw Error;
     }
     const { competitionId, teamId } = ctx.request.body;
-    console.log(competitionId, teamId);
-    const competition = await Competition.findById(competitionId);
+    const populateQuery = [{ path: 'teams.appendix' }];
+    const competition = await Competition.findById(competitionId).populate(
+      populateQuery
+    );
     let appendix;
     for (let i = 0; i < competition.teams.length; i++) {
       if (competition.teams[i]._id.toString() === teamId) {
-        appendix = { ...competition.teams[i].appendix };
-        break;
+        //获取作品
+        appendix = competition.teams[i].appendix;
       }
     }
-    if (appendix.isSubmit) {
+    if (appendix) {
       ctx.body = {
         code: 0,
         data: {
@@ -287,22 +326,15 @@ router.post('/getAppendix', async (ctx, next) => {
 router.post('/deleteAppendix', async (ctx, next) => {
   try {
     //数据校验
-    const { error } = idSchema.validate(ctx.request.body, {
+    const { error } = appendixIdSchema.validate(ctx.request.body, {
       allowUnknown: true,
     });
     if (error) {
-      const Error = new HttpException('请传入比赛id', 400);
+      const Error = new HttpException('请传入作品id', 400);
       throw Error;
     }
-    const { competitionId, teamId } = ctx.request.body;
-    const competition = await Competition.findById(competitionId);
-    for (let i = 0; i < competition.teams.length; i++) {
-      if (competition.teams[i]._id.toString() === teamId) {
-        competition.teams[i].appendix = { isSubmit: false };
-        break;
-      }
-    }
-    competition.save();
+    const { appendixId } = ctx.request.body;
+    const result = await Appendix.findByIdAndRemove(appendixId); //查找到作品信息并删除
     ctx.body = {
       code: 0,
       data: {},
@@ -328,10 +360,11 @@ router.post('/submitScore', async (ctx, next) => {
       throw Error;
     }
     const { competitionId, teamId, score } = ctx.request.body;
-    const competition = await Competition.findById(competitionId);
+    const competition = await Competition.findById(competitionId); //查询比赛信息
     for (let i = 0; i < competition.teams.length; i++) {
       if (competition.teams[i]._id.toString() === teamId) {
-        competition.teams[i].score = Number(score);
+        //查找队伍信息
+        competition.teams[i].score = Number(score); //评分写入数据库
         break;
       }
     }
@@ -361,12 +394,12 @@ router.post('/getRank', async (ctx, next) => {
       throw Error;
     }
     const { competitionId } = ctx.request.body;
-    // const competition = await Competition.findById(competitionId);
     const populateQuery = [{ path: 'teams.users.user' }];
     const competition = await Competition.findById(competitionId).populate(
       populateQuery
-    );
+    ); //查询比赛信息
     if (!competition.showRank) {
+      //如果成绩还未公布，则返回失败
       ctx.body = {
         code: 1,
         data: {},
@@ -384,9 +417,10 @@ router.post('/getRank', async (ctx, next) => {
       row.team = temp.join(' ');
       rank.push(row);
     }
-    let result = rank.sort(compare('score'));
+    let result = rank.sort(compare('score')); //排序
     let num = 1;
     for (let i = 0; i < result.length; i++) {
+      //处理分数相同的排名情况
       if (i === 0) {
         result[i].rank = 1;
       } else {

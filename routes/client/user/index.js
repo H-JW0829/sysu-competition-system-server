@@ -29,8 +29,7 @@ router.post('/login', async (ctx, next) => {
       throw Error;
     }
     const { tel, password, verify } = ctx.request.body;
-    console.log(verify);
-    const user = await User.findOne({ tel });
+    const user = await User.findOne({ tel }); //按手机号查找用户，看是否已注册
     if (!user) {
       ctx.body = {
         code: 1,
@@ -40,6 +39,7 @@ router.post('/login', async (ctx, next) => {
       return;
     }
     if (verify) {
+      //如果是管理端登录，需要验证是否是管理员身份
       if (user.role !== ADMIN) {
         ctx.body = {
           code: 1,
@@ -51,9 +51,9 @@ router.post('/login', async (ctx, next) => {
     }
     const buffer = Buffer.from(password, 'base64');
     const originalPassword = privateDecrypt(rsaPrivateKey, buffer).toString(); //解密后的原密码
-    const flag = bcrypt.compareSync(originalPassword, user.password); // true
+    const flag = bcrypt.compareSync(originalPassword, user.password); //和数据库存储的密码比较
     if (flag) {
-      let token =
+      let token = //签发token，用于身份校验
         'Bearer ' +
         sign({
           name: user.name,
@@ -82,7 +82,6 @@ router.post('/login', async (ctx, next) => {
       };
     }
   } catch (error) {
-    console.log(error);
     throw error;
   }
 });
@@ -99,8 +98,7 @@ router.post('/register', async (ctx, next) => {
       throw Error;
     }
     const { tel, name, role, password, staffId } = ctx.request.body;
-
-    const user = await User.findOne({ tel });
+    const user = await User.findOne({ tel }); //根据手机号查找用户，判断是否已经注册过
     if (user) {
       ctx.body = {
         code: 1,
@@ -112,7 +110,7 @@ router.post('/register', async (ctx, next) => {
       const buffer = Buffer.from(password, 'base64');
       const originalPassword = privateDecrypt(rsaPrivateKey, buffer).toString(); //解密后的原密码
       const salt = bcrypt.genSaltSync(10);
-      const hashPwd = bcrypt.hashSync(originalPassword, salt);
+      const hashPwd = bcrypt.hashSync(originalPassword, salt); //密码加盐，哈希
       const user = new User({
         tel,
         name,
@@ -121,6 +119,7 @@ router.post('/register', async (ctx, next) => {
         password: hashPwd,
       });
       const result = await user.save();
+      //token签名，作为身份验证、鉴权
       let token =
         'Bearer ' +
         sign({
@@ -144,7 +143,6 @@ router.post('/register', async (ctx, next) => {
       };
     }
   } catch (error) {
-    console.log('Register Route Error: ', error);
     throw error;
   }
 });

@@ -31,6 +31,7 @@ router.post('/add', async (ctx, next) => {
       min_people,
       max_people,
       score_teacher,
+      fileList,
     } = ctx.request.body;
     const competition = new Competition({
       title,
@@ -43,6 +44,7 @@ router.post('/add', async (ctx, next) => {
       tags,
       min_people: Number(min_people),
       max_people: Number(max_people),
+      fileList,
     });
     const teacher = await User.findOne({ staffId: score_teacher });
     competition.score_teacher = teacher._id;
@@ -203,11 +205,14 @@ router.post('/unPublishRank', async (ctx, next) => {
 });
 
 /**
- * 取消所有的作品信息
+ * 获取所有的作品信息
  */
 router.get('/getAllAppendixes', async (ctx, next) => {
   try {
-    const populateQuery = [{ path: 'teams.users.user' }];
+    const populateQuery = [
+      { path: 'teams.users.user' },
+      { path: 'teams.appendix' },
+    ];
     const competitions = await Competition.find({}).populate(populateQuery); //找出所有的比赛
     const appendixes = [];
     let key = 0;
@@ -224,7 +229,7 @@ router.get('/getAllAppendixes', async (ctx, next) => {
             id: competitions[i]._id,
             title: competitions[i].title,
           };
-          appendixInfo.appendix = competitions[i].teams[j].appendix;
+          appendixInfo.appendix = competitions[i].teams[j].appendix || {};
           let temp = [];
           competitions[i].teams[j].users.map((item) => {
             temp.push(item.user.name);
