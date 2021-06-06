@@ -9,3 +9,7 @@
 2.作品管理  
 3.评论管理  
 4.竞赛管理  
+### 启动命令
+需要先在你的电脑上配置好mongodb  
+npm install  
+npm run serve
