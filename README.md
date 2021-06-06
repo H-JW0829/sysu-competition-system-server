@@ -10,6 +10,6 @@
 3.评论管理  
 4.竞赛管理  
 ### 启动命令
-需要先在你的电脑上配置好mongodb  
+需要先在你的电脑上配置好mongodb，在config/globalParams文件下可以修改数据库的配置  
 npm install  
 npm run serve
